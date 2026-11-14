@@ -1,0 +1,48 @@
+# Configuracion unica del proyecto. Todos los scripts leen de aqui,
+# asi no hay rutas ni numeros escritos dentro del codigo.
+
+rutas:
+  datos_crudos: data/raw/creditcard.csv
+  datos_procesados: data/processed
+  modelos: models
+  reportes: reports
+
+datos:
+  columna_objetivo: Class
+  columna_tiempo: Time
+  columna_monto: Amount
+  columnas_pca: [V1, V2, V3, V4, V5, V6, V7, V8, V9, V10, V11, V12, V13, V14,
+                 V15, V16, V17, V18, V19, V20, V21, V22, V23, V24, V25, V26, V27, V28]
+
+particion:
+  estrategia: temporal        # temporal | aleatoria
+  proporcion_entrenamiento: 0.70
+  proporcion_validacion: 0.15
+  semilla: 42
+
+preprocesamiento:
+  escalador: robust           # robust | standard
+  log_monto: true             # aplica log(1 + monto)
+  hora_del_dia: true          # deriva la hora a partir de Time
+  eliminar_duplicados: true
+
+entrenamiento:
+  semilla: 42
+  gbdt:
+    n_estimators: 500
+    learning_rate: 0.05
+    max_depth: 6
+    subsample: 0.8
+    colsample_bytree: 0.8
+  red_neuronal:
+    capas: [128, 64, 32]
+    dropout: [0.3, 0.3, 0.2]
+    learning_rate: 0.001
+    batch_size: 2048
+    epocas: 40
+    paciencia: 8
+
+evaluacion:
+  metrica_principal: average_precision   # AUPRC
+  costo_falso_negativo: 1.0              # fraude que se deja pasar
+  costo_falso_positivo: 0.02             # transaccion legitima bloqueada

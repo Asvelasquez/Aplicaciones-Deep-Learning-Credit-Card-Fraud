@@ -1,0 +1,14 @@
+{
+  "criticas": {
+    "esquema_completo": true,
+    "sin_nulos": true,
+    "objetivo_binario": true,
+    "hay_positivos": true
+  },
+  "avisos": {
+    "duplicados": 1081,
+    "montos_en_cero": 1825,
+    "montos_negativos": 0
+  },
+  "columnas_faltantes": []
+}
