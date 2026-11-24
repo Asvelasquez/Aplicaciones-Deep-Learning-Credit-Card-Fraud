@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detector de fraude con tarjeta</title>
+  <meta name="description" content="Red neuronal tabular y XGBoost para detectar transacciones fraudulentas. La inferencia corre en el navegador.">
+  <link rel="stylesheet" href="css/estilos.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%230F766E' d='M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5z'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="cabecera">
+    <div class="contenedor cabecera-fila">
+      <div class="marca">
+        <svg class="marca-icono" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2 4 5v6c0 5 3.4 9.3 8 11 4.6-1.7 8-6 8-11V5z"/><path class="trazo" d="m8.5 12 2.5 2.5 4.5-5"/></svg>
+        <div>
+          <h1>Detector de fraude con tarjeta</h1>
+          <p class="subtitulo">Red neuronal tabular y XGBoost entrenados con 283.726 transacciones reales</p>
+        </div>
+      </div>
+      <p class="privacidad">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Los datos se procesan en tu navegador. Nada se envía a un servidor.
+      </p>
+    </div>
+  </header>
+
+  <main class="contenedor">
+    <nav class="pestanas" role="tablist" aria-label="Secciones">
+      <button role="tab" id="tab-lote" aria-controls="panel-lote" aria-selected="true">Analizar un lote</button>
+      <button role="tab" id="tab-individual" aria-controls="panel-individual" aria-selected="false">Transacción individual</button>
+      <button role="tab" id="tab-info" aria-controls="panel-info" aria-selected="false">Cómo funciona</button>
+    </nav>
+
+    <section class="tarjeta controles" aria-label="Configuración del modelo">
+      <div class="control">
+        <span class="etiqueta" id="lbl-modelo">Modelo</span>
+        <div class="segmentado" role="radiogroup" aria-labelledby="lbl-modelo">
+          <label><input type="radio" name="modelo" value="red" checked><span>Red neuronal</span></label>
+          <label><input type="radio" name="modelo" value="xgboost"><span>XGBoost</span></label>
+          <label><input type="radio" name="modelo" value="ensamble"><span>Ensamble</span></label>
+        </div>
+        <p class="ayuda" id="desc-modelo"></p>
+      </div>
+      <div class="control control-umbral">
+        <label class="etiqueta" for="umbral">Umbral de alerta <output id="umbral-valor"></output></label>
+        <input type="range" id="umbral" min="0" max="1000" step="1">
+        <div class="umbral-pie">
+          <span>Más fraudes detectados</span>
+          <button type="button" class="enlace" id="umbral-reset">Usar el recomendado</button>
+          <span>Menos alertas falsas</span>
+        </div>
+        <p class="ayuda" id="efecto-umbral" aria-live="polite"></p>
+      </div>
+    </section>
+
+    <!-- ===================== Panel 1: lote ===================== -->
+    <section id="panel-lote" role="tabpanel" aria-labelledby="tab-lote">
+      <div class="tarjeta zona-carga" id="zona-carga" tabindex="0">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <p class="zona-titulo">Arrastra aquí un archivo CSV de transacciones</p>
+        <div class="zona-botones">
+          <label class="boton primario">Elegir archivo<input type="file" id="archivo" accept=".csv,text/csv" hidden></label>
+          <button type="button" class="boton" id="usar-ejemplo">Usar el lote de ejemplo (3.000 transacciones)</button>
+        </div>
+        <p class="ayuda">Columnas requeridas: <code>Time</code>, <code>V1</code> a <code>V28</code> y <code>Amount</code>, con el mismo formato del conjunto de Kaggle.
+          La columna <code>Class</code> es opcional; si está, se calculan las métricas reales del lote.
+          <a href="ejemplos/plantilla.csv" download>Descargar plantilla</a></p>
+      </div>
+
+      <div id="estado" class="estado" aria-live="polite" hidden>
+        <div class="barra"><div id="progreso"></div></div>
+        <p id="estado-texto"></p>
+      </div>
+      <div id="avisos" class="avisos" role="alert" hidden></div>
+
+      <div id="resultados-lote" hidden>
+        <div class="kpis" id="kpis"></div>
+        <div class="kpis" id="kpis-reales" hidden></div>
+
+        <div class="tarjeta">
+          <div class="tarjeta-cabecera">
+            <h2>Alertas por hora del día</h2>
+            <p class="ayuda">Las barras muestran cuántas transacciones del lote se marcaron como alerta en cada hora<span id="leyenda-reales"></span>.</p>
+          </div>
+          <div id="grafica-horas" class="grafica"></div>
+        </div>
+
+        <div class="tarjeta">
+          <div class="tarjeta-cabecera fila-entre">
+            <h2 id="titulo-tabla">Transacciones en alerta</h2>
+            <div class="acciones">
+              <label class="interruptor"><input type="checkbox" id="ver-todas"> Ver todas</label>
+              <button type="button" class="boton" id="descargar">Descargar resultados (CSV)</button>
+            </div>
+          </div>
+          <p class="ayuda">Ordenadas de mayor a menor riesgo. Haz clic en una fila para ver por qué el modelo la marcó.</p>
+          <div class="tabla-scroll">
+            <table id="tabla">
+              <thead><tr><th>Prioridad</th><th>Fila</th><th>Hora</th><th class="num">Monto (€)</th><th>Riesgo (0 a 100)</th><th>Decisión</th><th id="th-real">Clase real</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <p class="ayuda" id="pie-tabla"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Panel 2: individual ===================== -->
+    <section id="panel-individual" role="tabpanel" aria-labelledby="tab-individual" hidden>
+      <div class="dos-columnas">
+        <form class="tarjeta" id="formulario" onsubmit="return false">
+          <h2>Datos de la transacción</h2>
+          <label class="campo">Cargar un ejemplo
+            <select id="ejemplo"></select>
+          </label>
+          <div class="campos-dobles">
+            <label class="campo">Monto (€)
+              <input type="number" id="f-Amount" min="0" step="0.01" inputmode="decimal">
+            </label>
+            <label class="campo">Hora del día
+              <select id="f-hora"></select>
+            </label>
+          </div>
+          <h3>Variables con más peso en el modelo</h3>
+          <p class="ayuda">Son componentes anonimizados (PCA) que el banco calcula a partir de la transacción. Muévelos para ver cómo cambia el riesgo.</p>
+          <div id="deslizadores"></div>
+          <details>
+            <summary>Las otras 22 variables</summary>
+            <div class="rejilla-v" id="otras-v"></div>
+          </details>
+        </form>
+
+        <div class="tarjeta resultado" id="resultado" aria-live="polite">
+          <h2>Resultado</h2>
+          <div class="medidor">
+            <div class="medidor-valor" id="r-valor">–</div>
+            <div class="medidor-barra"><div id="r-barra"></div><div id="r-marca" class="marca-umbral" title="Umbral"></div></div>
+            <div class="medidor-escala"><span>Bajo</span><span>Alto</span></div>
+          </div>
+          <p class="decision" id="r-decision"></p>
+          <p id="r-contexto" class="ayuda"></p>
+          <p id="r-real" class="real" hidden></p>
+          <h3>Los tres modelos</h3>
+          <div id="r-modelos"></div>
+          <h3>Qué empuja la decisión</h3>
+          <p class="ayuda">Cada variable se lleva a su valor típico y se mide cuánto cambia el riesgo. En rojo lo que sube el riesgo y en verde lo que lo baja.</p>
+          <div id="r-explicacion"></div>
+          <p class="ayuda" id="nota-explicacion"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== Panel 3: cómo funciona ===================== -->
+    <section id="panel-info" role="tabpanel" aria-labelledby="tab-info" hidden>
+      <div class="tarjeta">
+        <h2>Del dato a la decisión</h2>
+        <ol class="pasos">
+          <li><strong>Datos de entrada</strong><span>Tiempo, monto y 28 componentes anonimizados de cada transacción.</span></li>
+          <li><strong>Preprocesamiento</strong><span>Hora del día en forma circular, logaritmo del monto y escalado robusto, con los mismos parámetros del entrenamiento.</span></li>
+          <li><strong>Modelos</strong><span>Red neuronal de 31 → 128 → 64 → 32 → 1 neuronas y XGBoost con 36 árboles. El ensamble promedia la posición de riesgo de los dos.</span></li>
+          <li><strong>Decisión</strong><span>Se compara el riesgo con un umbral elegido para minimizar el costo, donde un fraude perdido pesa como 50 alertas falsas.</span></li>
+        </ol>
+        <p class="ayuda">El riesgo se muestra como un puntaje de 0 a 100 y no como una probabilidad. La red se entrenó con pérdida focal y XGBoost con un peso grande para los fraudes, así que sus salidas sirven para ordenar las transacciones por riesgo pero no para leerlas como porcentaje de certeza. Por eso el umbral se expresa como la proporción de transacciones más riesgosas que se envía a revisión.</p>
+      </div>
+      <div class="tarjeta">
+        <h2>Desempeño en datos nunca vistos</h2>
+        <p class="ayuda">Conjunto de prueba: las <span id="info-filas"></span> transacciones más recientes del periodo, con <span id="info-fraudes"></span> fraudes. Ninguna se usó para entrenar ni para elegir el umbral.</p>
+        <div class="tabla-scroll"><table id="tabla-metricas"></table></div>
+      </div>
+      <div class="dos-columnas">
+        <div class="tarjeta">
+          <h2>Límites que conviene conocer</h2>
+          <ul class="lista">
+            <li>Los datos son de tarjetas europeas de 2013; el fraude actual puede tener otros patrones.</li>
+            <li>Las variables V1 a V28 están anonimizadas, así que el modelo no puede usar el historial del cliente ni el tipo de comercio.</li>
+            <li>Uno de cada cinco fraudes recibe un riesgo bajo: se parecen demasiado a transacciones normales.</li>
+            <li>Es una herramienta de apoyo para priorizar revisiones, no una decisión automática de bloqueo.</li>
+          </ul>
+        </div>
+        <div class="tarjeta">
+          <h2>Privacidad y código</h2>
+          <p>La página descarga una sola vez los pesos de los modelos y hace todos los cálculos en tu equipo. Los archivos que cargas nunca salen del navegador.</p>
+          <p>Proyecto de Deep Learning de la Especialización en Inteligencia Artificial, Universidad de Cundinamarca. Código, datos de evaluación y documentación en el
+            <a id="enlace-repo" href="#">repositorio de GitHub</a>.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="pie contenedor">
+    <p>Datos: Credit Card Fraud Detection, Machine Learning Group, Université Libre de Bruxelles. Uso académico.</p>
+  </footer>
+
+  <script src="js/modelo.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
