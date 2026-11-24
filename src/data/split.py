@@ -23,7 +23,7 @@ def particion_temporal(df: pd.DataFrame, cfg: dict):
     p_tr = cfg["particion"]["proporcion_entrenamiento"]
     p_va = cfg["particion"]["proporcion_validacion"]
 
-    df = df.sort_values(col_tiempo).reset_index(drop=True)
+    df = df.sort_values(col_tiempo, kind="mergesort").reset_index(drop=True)   # orden estable
     n = len(df)
     corte1, corte2 = int(n * p_tr), int(n * (p_tr + p_va))
     return df.iloc[:corte1], df.iloc[corte1:corte2], df.iloc[corte2:]

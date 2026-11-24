@@ -28,19 +28,34 @@ preprocesamiento:
 
 entrenamiento:
   semilla: 42
-  gbdt:
-    n_estimators: 500
-    learning_rate: 0.05
-    max_depth: 6
-    subsample: 0.8
-    colsample_bytree: 0.8
-  red_neuronal:
+  semillas_finales: [42, 7, 2024]     # el modelo final promedia una corrida por semilla
+  gbdt:                               # XGBoost v2, hiperparametros elegidos con Optuna (30 trials)
+    n_estimators: 2000                # tope, la parada temprana corta mucho antes
+    parada_temprana: 100
+    learning_rate: 0.2655
+    max_depth: 10
+    min_child_weight: 2.965
+    subsample: 0.8945
+    colsample_bytree: 0.5648
+    gamma: 3.0044
+    reg_lambda: 2.954
+    exp_peso: 0.9809                  # scale_pos_weight = razon_desbalance ** exp_peso
+  red_neuronal:                       # Red MLP v2
     capas: [128, 64, 32]
     dropout: [0.3, 0.3, 0.2]
     learning_rate: 0.001
+    weight_decay: 0.01
     batch_size: 2048
     epocas: 40
     paciencia: 8
+    parada: val_auprc                 # v1 usaba val_loss
+    perdida: focal
+    alfa: 0.75
+    gamma: 2.0
+    embedding: false                  # true activa los embeddings periodicos
+    emb_k: 8
+    emb_d: 16
+    emb_sigma: 0.1
 
 evaluacion:
   metrica_principal: average_precision   # AUPRC
